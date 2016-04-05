@@ -155,5 +155,21 @@ int main(int argc, char **argv)
 	double meanResult[len];
 	calculateAmplitude(result,meanResult,len);
 	writeCSV(&meanResult[0],&freq[0],len,"filteredFreqs.csv");
+	fftw_complex filteredOut[len];
+	q = fftw_plan_dft_1d(len,lowPass,filteredOut,FFTW_BACKWARD,FFTW_ESTIMATE);
+	fftw_execute(q);
+	for(int i = 0; i < len; i++){
+		filteredOut[i][0] *= 1./len;
+		filteredOut[i][1] *= 1./len;
+	}
+	for(int i = 0; i<len;i++){
+		printf("recover: %3d %+9.5"
+	}
+	
+	
+	fftw_destroy_plan(q);
+	fftw_destroy_plan(p);
+	fftw_cleanup();
+	return 0;
 	
 }
