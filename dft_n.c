@@ -156,16 +156,17 @@ int main(int argc, char **argv)
 	calculateAmplitude(result,meanResult,len);
 	writeCSV(&meanResult[0],&freq[0],len,"filteredFreqs.csv");
 	fftw_complex filteredOut[len];
-	q = fftw_plan_dft_1d(len,lowPass,filteredOut,FFTW_BACKWARD,FFTW_ESTIMATE);
+	q = fftw_plan_dft_1d(len,result,filteredOut,FFTW_BACKWARD,FFTW_ESTIMATE);
 	fftw_execute(q);
 	for(int i = 0; i < len; i++){
 		filteredOut[i][0] *= 1./len;
 		filteredOut[i][1] *= 1./len;
 	}
 	for(int i = 0; i<len;i++){
-		printf("recover: %3d %+9.5"
+		printf("recover: %3d %+9.5f %+9.5f I \n",i,filteredOut[i][0],filteredOut[i][1]);
 	}
-	
+	calculateAmplitude(filteredOut,meanResult,len);
+	writeCSV(&meanResult[0],&time[0],len,"out.csv");
 	
 	fftw_destroy_plan(q);
 	fftw_destroy_plan(p);
