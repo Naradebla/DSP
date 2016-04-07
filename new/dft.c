@@ -17,6 +17,8 @@
 #define FFTFILE "complex.csv"
 #define FILTERFILE "lp.csv"
 #define DPFILE "dp.csv"
+#define OUTFREQFILE "ffout.csv"
+#define OUTTIMEFILE "tout.csv"
 void createLowPass(double target[], int len, double cutOffFreq, double slopeFreq){
 	double factor = SAMPLERATE/len;
 	double cutOff = cutOffFreq/factor;
@@ -83,7 +85,35 @@ int shazam(double maxF, double samples[],fftw_complex results[],int len){
 	fftw_destroy_plan(p);
 	return factor;
 }
-
+void applyFilter(fftw_complex signal[],fftw_complex out[],double filter[],int len){
+	for(int i = 0; i < len; i++){
+		out[i][0] = signal[i][0] * filter[i];
+		out[i][1] = signal[i][1] * filter[i];
+	}
+	
+}
+int hdfft(int sampleFactor, double samples[],fftw_complex results[],int len){
+	int targetLen = len * sampleFactor;
+	int t = 0;
+	double factor = SAMPLERATE/targetLen;
+	fftw_complex timeD[targetLen],freqD[targetLen];
+	for(int i = 0; i < sampleFactor; i++){
+		for(int c = 0; c < len; c++){
+			timeD[t][0] = samples[c];
+			timeD[t][1] = 0;
+			t++;
+		}
+	}
+	fftw_plan p;
+	p = fftw_plan_dft_1d(targetLen,timeD,freqD,FFTW_FORWARD,FFTW_ESTIMATE);
+	fftw_execute(p);
+	/*for(int i = 0; i < len;i++){
+		results[i][0] = freqD[i][0];
+		results[i][1] = freqD[i][1];
+	}*/
+	fftw_destroy_plan(p);
+	return targetLen;
+}
 int main(int argc, char **argv)
 {
 	printf("Frequency calculator\n");
@@ -91,56 +121,32 @@ int main(int argc, char **argv)
 	printf("Input: %9s\n",INPUTFILE);
 	
 	double in[maxSample];
-	double timeA[maxSample];
-	int len = loadCSV(INPUTFILE,&in[0],&timeA[0]);
+	double time[maxSample];
+	int len = loadCSV(INPUTFILE,&in[0],&time[0]);
 	
 	double cleanIn[len];
 	for(int i = 0; i < len; i++){
 		cleanIn[i] = in[i];
 	}
-	fftw_complex freqDom[len];
-	double factor = shazam(20000,cleanIn,freqDom,len);
-	/*
-	fftw_complex timeDom[len], freqDom[len];
-	fftw_plan p;
-	
-	*/
-	
-	/*double f = timeA[1]-timeA[0];
-	double time[len];
-	for(int i = 0; i < len; i++){
-		time[i] = f*i;
-		if(i < lenA){
-			timeDom[i][0] = cleanIn[i];
-			timeDom[i][1] = 0;
-		}else{
-			timeDom[i][0] = cleanIn[i - lenA];
-			timeDom[i][1] = 0;
-		}
-	}*/
-	/*writeCSVComplex(timeDom, time,len, DPFILE);
-	
-	
-	p = fftw_plan_dft_1d(len,timeDom,freqDom,FFTW_FORWARD,FFTW_ESTIMATE);
-	fftw_execute(p);*/
+	fftw_complex freqDom[len*5];
+	int eLen = hdfft(5,cleanIn,freqDom,len);
 
-	//double factor = SAMPLERATE/len;
-	
-	double freqs[len];
-	for(int i = 0; i < len; i++){
+	double factor = SAMPLERATE/eLen;
+	double freqs[eLen];
+	for(int i = 0; i < eLen; i++){
 		freqs[i] = i * factor;
 	}
 	
-	writeCSVComplex(freqDom, &freqs[0],len, FFTFILE);
+	writeCSVComplex(freqDom, &freqs[0],eLen, FFTFILE);
 	
-	double magnitude[len];
-	for(int i = 0; i < len; i++){
+	double magnitude[eLen];
+	for(int i = 0; i < eLen; i++){
 		magnitude[i] = sqrt(pow(freqDom[i][0],2)+pow(freqDom[i][1],2));
 	}
 	
 	double maxPeak = 0;
 	int index = 0;
-	for(int i = 0;i < len; i++){
+	for(int i = 0;i < eLen; i++){
 		if(magnitude[i] > maxPeak){
 			maxPeak = magnitude[i];
 			index = i;
@@ -149,7 +155,7 @@ int main(int argc, char **argv)
 	
 	printf("Magniute peak detection, index: %i, scaled: %f\n",index,index*factor);
 	
-	double cof;
+	/*double cof;
 	double slope;
 	printf("Generating low pass filter...\nInsert cut off frequency (Hz):");
 	scanf("%lf",&cof);
@@ -161,8 +167,21 @@ int main(int argc, char **argv)
 	
 	double lowPass[len];
 	createLowPass(lowPass,len,cof,slope);
-	
 	writeCSV(&lowPass[0], &freqs[0],len, FILTERFILE);
+	
+	fftw_complex signal[eLen];
+	applyFilter(freqDom, signal, lowPass, len);
+	writeCSVComplex(signal,&freqs[0],len, OUTFREQFILE);*/
+	
+	fftw_complex outTimeDom[eLen];
+	
+	fftw_plan q;
+	q = fftw_plan_dft_1d(eLen,outTimeDom,freqDom,FFTW_BACKWARD,FFTW_ESTIMATE);
+	fftw_execute(q);
+	
+	writeCSVComplex(outTimeDom,&time[0],eLen, OUTTIMEFILE);
+	
+	fftw_destroy_plan(q);
 	fftw_cleanup();
 	return 0;
 }
